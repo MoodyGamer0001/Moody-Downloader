@@ -1,0 +1,55 @@
+name: Build Windows Executable
+
+# Builds MoodyDownloader.exe on a real Windows runner (GitHub-hosted) so you
+# never need your own Windows machine. Triggers on every push to main, on
+# manual runs from the Actions tab ("Run workflow"), and on tagged releases.
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  workflow_dispatch: {}
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: moody_downloader
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build MoodyDownloader.exe
+        working-directory: moody_downloader
+        run: |
+          pyinstaller --noconfirm --onefile --windowed `
+            --name "MoodyDownloader" `
+            --collect-all PyQt6 `
+            main.py
+
+      - name: Upload .exe as a downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoodyDownloader-Windows
+          path: moody_downloader/dist/MoodyDownloader.exe
+          if-no-files-found: error
+
+      # If this run was triggered by pushing a version tag (e.g. "v1.0.0"),
+      # also attach the .exe directly to a GitHub Release for easy sharing.
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: moody_downloader/dist/MoodyDownloader.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
